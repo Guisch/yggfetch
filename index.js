@@ -63,9 +63,10 @@ http.createServer(function(req, res) {
         downloadPath: downloadPath,
       });
 
+      var finalResponse;
       try {
         console.log("Waiting for Cloudflare challenge");
-        const finalResponse = await page.waitForResponse(function(response) {
+        finalResponse = await page.waitForResponse(function(response) {
           return /download/i.test(response.url()) &&
             response.status() === 200 &&
             response.headers()['content-disposition'] != null;
