@@ -49,9 +49,18 @@ http.createServer(function(req, res) {
           response.headers()['content-disposition'] != null;
       });
 
+      console.log('Downloading file');
       const contentDisposition = finalResponse.headers()['content-disposition'];
       const fileName = contentDisposition.slice(contentDisposition.indexOf('"') + 1, contentDisposition.length - 1);
       const filePath = path.join(downloadPath, fileName);
+      
+      var i = 0;
+      while(!fs.existsSync(filePath)) {
+          await new Promise(resolve => setTimeout(resolve, 500));
+          if (i++ > 10)
+            break;
+      }
+      
       const fileStream = fs.createReadStream(filePath);
 
       res.writeHead(200, {
@@ -63,15 +72,18 @@ http.createServer(function(req, res) {
     } else {
       console.log('Waiting for Cloudflare challenge');
       await page.waitFor(() => !document.querySelector('.ray_id'));
-      await page.waitFor('.line');
+      await page.waitForResponse(response => response.status() === 200);
+      console.log('Extracting html');
 
       const bodyHandle = await page.$('body');
       const resHTML = await page.evaluate(body => body.outerHTML, bodyHandle);
       await bodyHandle.dispose();
 
-      res.writeHead(200, {
-        'Content-Type': 'application/rss+xml'
-      });
+      if (/rss/i.test(req.url)) {
+        res.writeHead(200, {
+          'Content-Type': 'application/rss+xml'
+        });
+      }
       res.write(resHTML);
       res.end();
     }

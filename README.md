@@ -7,6 +7,7 @@ Bypass YGGTorrent cloudflare challenge (does not solve the captcha).
 It use [puppeteer](https://github.com/puppeteer/puppeteer) to create an headless browser and then redirect the output to local http server
 If the environment variable `YGG_USERNAME` is detected, the script will login with the provided credentials before fetching the requested page.
 This does not solve the captcha, The captcha only appear if your IP has a bad reputation.
+It works for the RSS and RSS download, not tested elsewhere.
 
 ## Getting started
 
@@ -31,7 +32,7 @@ You can edit `YGG_USERNAME` and `YGG_USERNAME` environment variable in `./Docker
 git clone https://github.com/Guisch/yggfetch.git
 cd yggfetch
 docker build -t yggfetch:latest .
-docker run --name yggfetch -p 8091:8091 -d yggfetch:latest
+docker run --restart=always --name yggfetch -p 8091:8091 -d yggfetch:latest
 ```
 
 #### NodeJS
