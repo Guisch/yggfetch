@@ -1,5 +1,6 @@
 const puppeteer = require('puppeteer-extra');
 const StealthPlugin = require('puppeteer-extra-plugin-stealth');
+const AdblockerPlugin = require('puppeteer-extra-plugin-adblocker')
 const http = require('http');
 const fs = require('fs');
 const path = require('path');
@@ -10,23 +11,36 @@ const username = process.env.YGG_USERNAME;
 const password = process.env.YGG_PASSWORD;
 
 puppeteer.use(StealthPlugin());
+puppeteer.use(AdblockerPlugin({
+  blockTrackers: true
+}))
+
 if (!fs.existsSync(downloadPath)) {
   fs.mkdirSync(downloadPath);
 }
 
 
 http.createServer(function(req, res) {
-  console.log('Incomming request for', req.url);
   console.log('Launching headless browser...');
   puppeteer.launch({
     headless: true,
     args: ['--no-sandbox']
   }).then(async browser => {
+    console.log('Incomming request for', req.url);
+
+    if (req.url == "/user/login")
+      return res.end();
 
     const page = await browser.newPage();
 
+    var cookies;
+    if (fs.existsSync('./cookies.json')) {
+      const cookiesString = await fs.readFileSync('./cookies.json');
+      cookies = JSON.parse(cookiesString);
+      await page.setCookie(...cookies);
+    }
+
     if (username != null && username != '') {
-      console.log('Logging with creddentials');
       await page.goto(yggBaseUrl);
       try {
         console.log('Waiting for Cloudflare challenge');
@@ -37,25 +51,28 @@ http.createServer(function(req, res) {
       } catch (e) {
         console.log('Error', e)
         await browser.close();
+        res.end();
         return;
       }
 
       const loginBodyHandle = await page.$('body');
       const loginResHTML = await page.evaluate(body => body.outerHTML, loginBodyHandle);
       await loginBodyHandle.dispose();
+
       // If user is not already logged in
       if (!/user\/logout/i.test(loginResHTML)) {
-        await page.click('#register');
-        // Wait for login form to show up
-        await page.waitFor('input[name="id"]');
-        await page.type('input[name="id"]', username);
-        await page.type('input[name="pass"]', password);
-        await page.keyboard.press('Enter');
+        console.log('Logging with creddentials');
+        await page.evaluate(`document.querySelector('#user-login input[name=id]').value='${username}'`);
+        await page.evaluate(`document.querySelector('#user-login input[name=pass]').value='${password}'`);
+        await page.evaluate(() => document.querySelector('#user-login').submit());
+        await page.waitForResponse(function(response) {
+          return /user\/login/i.test(response.url()) &&
+            response.status() === 200;
+        });
         console.log('User successfully logged-in');
       } else {
         console.log('User already logged-in');
       }
-
     }
 
     console.log('Fetching requested URL');
@@ -79,6 +96,7 @@ http.createServer(function(req, res) {
       } catch (e) {
         console.log('Error', e)
         await browser.close();
+        res.end();
         return;
       }
 
@@ -107,9 +125,12 @@ http.createServer(function(req, res) {
       try {
         console.log('Waiting for Cloudflare challenge');
         await page.waitFor(() => !document.querySelector('.ray_id'));
-        await page.waitFor(/rss/i.test(req.url) ? '.line' : 'img[src="/static/img/footer.png"]');
+        await page.waitFor(/rss/i.test(req.url) ? '.line' : 'img[src="/static/img/footer.png"]', {
+          timeout: 60000
+        });
       } catch (e) {
-        console.log('Error', e)
+        console.log('Error', e);
+        res.end();
         await browser.close();
         return;
       }
@@ -126,12 +147,15 @@ http.createServer(function(req, res) {
       }
       res.write(resHTML);
       res.end();
-
     }
+
+    console.log('Saving cookies');
+    cookies = await page.cookies();
+    await fs.writeFileSync('./cookies.json', JSON.stringify(cookies, null, 2));
 
     await browser.close();
     console.log('Done');
   });
 }).listen(process.env.PORT || 8091, process.env.HOST || '0.0.0.0', function() {
   console.log('ygg fetcher running');
-})
+});

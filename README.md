@@ -1,3 +1,11 @@
+# Deprecated
+
+This project is being archived since YGG remove Cloudflare protection.
+See: https://github.com/Jackett/Jackett/issues/8840#issuecomment-640291006
+It may be unarchive in the future if YGG re-enable cloudflare protection.
+
+
+
 # yggfetch
 
 Bypass YGGTorrent cloudflare challenge (does not solve the captcha).
